@@ -3,13 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Shared Realtime Calendar</title>
+<title>Refined Weekly Planner</title>
 <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f4f9; margin: 0; padding: 20px; }
+    /* --- MODIFIED: New background color --- */
+    body { 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+        background-color: #c4c4c4; 
+        margin: 0; 
+        padding: 20px; 
+    }
     #calendar-app { display: flex; flex-direction: column; width: 100%; max-width: 1400px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; background-color: #fff; }
     #calendar-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background-color: #343a40; color: white; }
     #week-range { font-size: 1.5em; font-weight: 500; }
     #prev-week, #next-week { cursor: pointer; padding: 8px 14px; background-color: #495057; border: none; color: white; border-radius: 5px; }
+    #header-controls { display: flex; align-items: center; gap: 15px; }
     #calendar-grid { display: flex; flex-grow: 1; }
     #time-column { width: 80px; flex-shrink: 0; display: flex; flex-direction: column; background-color: #f8f9fa; border-right: 1px solid #ddd; }
     .time-corner { height: 60px; border-bottom: 1px solid #ddd; }
@@ -28,7 +35,15 @@
     #event-form input, #event-form select { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
     #event-form button { width: 100%; padding: 10px; margin-top: 20px; border: none; background-color: #007bff; color: white; border-radius: 5px; cursor: pointer; }
     #close-modal { float: right; font-size: 1.5em; cursor: pointer; }
-    .event { position: absolute; color: white; border-radius: 4px; padding: 4px; font-size: 0.8em; overflow: hidden; z-index: 10; cursor: move; box-sizing: border-box; text-align: center; font-weight: bold; }
+    
+    /* --- MODIFIED: Added a distinct border --- */
+    .event { 
+        position: absolute; color: white; border-radius: 4px; 
+        padding: 4px; font-size: 0.8em; overflow: hidden; 
+        z-index: 10; cursor: move; box-sizing: border-box; 
+        text-align: center; font-weight: bold;
+        border: 1px solid #212121; /* Almost-black border */
+    }
     .event a { color: white; }
     .event small { font-weight: normal; }
     .delete-event { position: absolute; top: 2px; right: 5px; display: none; font-weight: bold; cursor: pointer; }
@@ -37,9 +52,12 @@
 </head>
 <body>
 
-<!-- The main HTML structure for the calendar -->
 <div id="calendar-app">
     <div id="calendar-header">
+        <div id="header-controls">
+            <input type="checkbox" id="toggle-time-display" checked>
+            <label for="toggle-time-display">Show Time</label>
+        </div>
         <button id="prev-week">&lt; Prev</button>
         <div id="week-range"></div>
         <button id="next-week">Next &gt;</button>
@@ -47,7 +65,6 @@
     <div id="calendar-grid"></div>
 </div>
 
-<!-- The main HTML structure for the pop-up modal -->
 <div id="modal-overlay">
     <div id="event-modal">
         <span id="close-modal">&times;</span>
@@ -80,12 +97,11 @@
     </div>
 </div>
 
-<!-- The Corrected Script Section -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <script>
-    // --- INITIALIZE FIREBASE ---
+    // --- FIREBASE & INITIALIZATION (Unchanged) ---
     const firebaseConfig = {
       apiKey: "AIzaSyCp5zpRl9K4-7okPG1nOmaHEIbS1e1y6Fs",
       authDomain: "calendarsad-72fe9.firebaseapp.com",
@@ -96,12 +112,11 @@
       appId: "1:22134515039:web:fb4334e2c834e07b0b82ea",
       measurementId: "G-C4RTHRE20J"
     };
-
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // --- All other JavaScript from here ---
     document.addEventListener('DOMContentLoaded', function() {
+        // --- REFERENCES & STATE ---
         const calendarGrid = document.getElementById('calendar-grid');
         const weekRangeEl = document.getElementById('week-range');
         const prevBtn = document.getElementById('prev-week');
@@ -110,13 +125,13 @@
         const eventForm = document.getElementById('event-form');
         const closeModalBtn = document.getElementById('close-modal');
         const modalTitle = document.getElementById('modal-title');
+        const toggleTimeDisplay = document.getElementById('toggle-time-display');
         let currentDate = new Date();
         let allEvents = [];
+        let showTimeOnBubble = true;
 
-        function saveAllEvents(events) {
-            return database.ref('events').set(events);
-        }
-
+        // --- DATA & MODAL FUNCTIONS (Unchanged) ---
+        function saveAllEvents(events) { return database.ref('events').set(events); }
         function loadEventsAndRender() {
             const eventsRef = database.ref('events');
             eventsRef.on('value', (snapshot) => {
@@ -125,39 +140,31 @@
                 renderWeeklyCalendar();
             });
         }
-        
         function handleFormSubmit(e) {
             e.preventDefault();
             const eventId = document.getElementById('event-id').value;
             const eventData = {
-                id: eventId || 'event' + Date.now(),
-                org: document.getElementById('event-org').value,
-                date: document.getElementById('event-date').value,
-                name: document.getElementById('event-name').value,
-                startTime: document.getElementById('start-time').value,
-                endTime: document.getElementById('end-time').value,
+                id: eventId || 'event' + Date.now(), org: document.getElementById('event-org').value,
+                date: document.getElementById('event-date').value, name: document.getElementById('event-name').value,
+                startTime: document.getElementById('start-time').value, endTime: document.getElementById('end-time').value,
                 link: document.getElementById('meeting-link').value
             };
-            if (eventData.endTime <= eventData.startTime) {
-                alert("End time must be after start time."); return;
-            }
+            if (eventData.endTime <= eventData.startTime) { alert("End time must be after start time."); return; }
             let updatedEvents = [...allEvents];
             const existingEventIndex = updatedEvents.findIndex(ev => ev.id === eventId);
-            if (existingEventIndex > -1) {
-                updatedEvents[existingEventIndex] = eventData;
-            } else {
-                updatedEvents.push(eventData);
-            }
+            if (existingEventIndex > -1) { updatedEvents[existingEventIndex] = eventData; } else { updatedEvents.push(eventData); }
             saveAllEvents(updatedEvents).catch(error => console.error("Firebase save failed: ", error));
             closeModal();
         }
-
         function openModalForNew(date, time) { eventForm.reset(); modalTitle.innerText = "Add New Event"; document.getElementById('event-id').value = ""; document.getElementById('event-date').value = date; document.getElementById('start-time').value = time; modalOverlay.style.display = 'flex'; }
         function openModalForEdit(event) { eventForm.reset(); modalTitle.innerText = "Edit Event"; document.getElementById('event-id').value = event.id; document.getElementById('event-org').value = event.org; document.getElementById('event-date').value = event.date; document.getElementById('event-name').value = event.name; document.getElementById('start-time').value = event.startTime; document.getElementById('end-time').value = event.endTime; document.getElementById('meeting-link').value = event.link; modalOverlay.style.display = 'flex'; }
         function closeModal() { modalOverlay.style.display = 'none'; }
+        
+        // --- RENDERING HELPERS (Unchanged) ---
         function getOrgColor(org) { const colors = { 'SAD': '#B71C1C', 'SAS': '#1B5E20', 'SAM': '#4A148C', 'SAJ': '#E65100', 'SAA': '#FF8F00', 'SAC': '#0D47A1', 'SAW': '#004D40', 'None': '#424242', 'ESF3': '#880E4F' }; return colors[org] || colors['None']; }
         function formatTime(timeString) { const [hour, minute] = timeString.split(':'); const h = parseInt(hour) % 12 || 12; const ampm = parseInt(hour) < 12 ? 'AM' : 'PM'; return `${h}:${minute} ${ampm}`; }
         
+        // --- RENDER EVENT (Unchanged from previous UI tweak) ---
         function renderEvent(eventData, layout) {
             const dayColumn = document.querySelector(`.day-column[data-date="${eventData.date}"]`);
             if (!dayColumn) return;
@@ -165,22 +172,25 @@
             eventEl.className = 'event'; eventEl.id = eventData.id; eventEl.draggable = true;
             eventEl.title = `${eventData.name}\nOrg: ${eventData.org}\nStart: ${formatTime(eventData.startTime)}\nEnd: ${formatTime(eventData.endTime)}`;
             const color = getOrgColor(eventData.org);
-            eventEl.style.backgroundColor = color; eventEl.style.border = `1px solid ${color}`;
+            eventEl.style.backgroundColor = color;
             eventEl.style.left = `${layout.left}%`; eventEl.style.width = `calc(${layout.width}% - 5px)`;
             const start = eventData.startTime.split(':'), end = eventData.endTime.split(':');
             const topOffsetMinutes = (parseInt(start[0]) - 7) * 60 + parseInt(start[1]);
             const durationMinutes = (parseInt(end[0]) - parseInt(start[0])) * 60 + (parseInt(end[1]) - parseInt(start[1]));
             if (durationMinutes <= 0) return;
             eventEl.style.top = `${topOffsetMinutes}px`; eventEl.style.height = `${durationMinutes}px`;
-            let innerHTML = `<span>${eventData.name}</span><br><small>${formatTime(eventData.startTime)} - ${formatTime(eventData.endTime)}</small>`;
+            let innerHTML = `<span>${eventData.name}</span>`;
+            if (showTimeOnBubble && durationMinutes > 30) {
+                innerHTML += `<br><small>${formatTime(eventData.startTime)} - ${formatTime(eventData.endTime)}</small>`;
+            }
             if (eventData.link) innerHTML += `<br><a href="${eventData.link}" target="_blank">Join</a>`;
             innerHTML += `<span class="delete-event" data-id="${eventData.id}">&times;</span>`;
             eventEl.innerHTML = innerHTML;
             dayColumn.appendChild(eventEl);
         }
-
-        function getStartOfWeek(date) { const newDate = new Date(date); newDate.setDate(newDate.getDate() - newDate.getDay()); newDate.setHours(0, 0, 0, 0); return newDate; }
         
+        // --- LAYOUT & MAIN RENDER (Unchanged) ---
+        function getStartOfWeek(date) { const newDate = new Date(date); newDate.setDate(newDate.getDate() - newDate.getDay()); newDate.setHours(0, 0, 0, 0); return newDate; }
         function renderWeeklyCalendar() {
             calendarGrid.innerHTML = '';
             const startOfWeek = getStartOfWeek(currentDate);
@@ -205,7 +215,6 @@
             const eventsWithLayout = calculateLayout(allEvents);
             eventsWithLayout.forEach(event => { const eventDate = new Date(event.date + 'T00:00:00'); if (eventDate >= startOfWeek && eventDate <= endOfWeek) renderEvent(event, event.layout); });
         }
-
         function calculateLayout(events) {
             const sortedEvents = events.sort((a,b) => a.startTime.localeCompare(b.startTime));
             const collisionGroups = [];
@@ -233,7 +242,7 @@
             return sortedEvents;
         }
         
-        // --- EVENT LISTENERS ---
+        // --- EVENT LISTENERS (Unchanged) ---
         prevBtn.addEventListener('click', () => { currentDate.setDate(currentDate.getDate() - 7); renderWeeklyCalendar(); });
         nextBtn.addEventListener('click', () => { currentDate.setDate(currentDate.getDate() + 7); renderWeeklyCalendar(); });
         closeModalBtn.addEventListener('click', closeModal);
@@ -277,8 +286,10 @@
             }
             saveAllEvents(updatedEvents);
         });
+        toggleTimeDisplay.addEventListener('change', (e) => { showTimeOnBubble = e.target.checked; renderWeeklyCalendar(); });
 
         // --- INITIAL LOAD ---
+        showTimeOnBubble = toggleTimeDisplay.checked;
         loadEventsAndRender();
     });
 </script>
