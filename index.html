@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Final Weekly Planner</title>
+<title>Final Interactive Planner</title>
 <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #c4c4c4; margin: 0; padding: 20px; }
     #calendar-app { display: flex; flex-direction: column; width: 100%; max-width: 1400px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; background-color: #fff; }
@@ -26,14 +26,18 @@
     #event-modal h3 { margin-top: 0; }
     #event-form label { display: block; margin-top: 15px; font-weight: bold; }
     #event-form input, #event-form select { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
-    /* Style for the new checkbox container */
     .form-toggle { display: flex; align-items: center; gap: 10px; margin-top: 15px; }
-    .form-toggle input { width: auto; margin: 0; } /* Reset width for checkbox */
-    .form-toggle label { margin: 0; font-weight: normal; } /* Reset label style */
+    .form-toggle input { width: auto; margin: 0; }
+    .form-toggle label { margin: 0; font-weight: normal; }
     #event-form button { width: 100%; padding: 10px; margin-top: 20px; border: none; background-color: #007bff; color: white; border-radius: 5px; cursor: pointer; }
     #close-modal { float: right; font-size: 1.5em; cursor: pointer; }
     .event { position: absolute; color: white; border-radius: 4px; padding: 4px; font-size: 0.8em; overflow: hidden; z-index: 10; cursor: move; box-sizing: border-box; text-align: center; font-weight: bold; border: 1px solid #212121; }
-    .event a { color: white; }
+    
+    /* --- MODIFIED: Ensure links in events are always underlined --- */
+    .event a { 
+        color: white; 
+        text-decoration: underline;
+    }
     .event small { font-weight: normal; }
     .delete-event { position: absolute; top: 2px; right: 5px; display: none; font-weight: bold; cursor: pointer; }
     .event:hover .delete-event { display: block; }
@@ -71,7 +75,6 @@
             <input type="time" id="end-time" required step="900">
             <label for="meeting-link">Meeting Link (Optional)</label>
             <input type="url" id="meeting-link" placeholder="https://">
-            <!-- NEW: Per-event toggle for showing time -->
             <div class="form-toggle">
                 <input type="checkbox" id="event-show-time">
                 <label for="event-show-time">Show time on event bubble</label>
@@ -85,7 +88,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <script>
-    // --- FIREBASE & INITIALIZATION (Unchanged) ---
+    // --- FIREBASE & INITIALIZATION ---
     const firebaseConfig = {
       apiKey: "AIzaSyCp5zpRl9K4-7okPG1nOmaHEIbS1e1y6Fs",
       authDomain: "calendarsad-72fe9.firebaseapp.com",
@@ -100,7 +103,7 @@
     const database = firebase.database();
 
     document.addEventListener('DOMContentLoaded', function() {
-        // --- REFERENCES & STATE (Global toggle removed) ---
+        // --- REFERENCES & STATE ---
         const calendarGrid = document.getElementById('calendar-grid');
         const weekRangeEl = document.getElementById('week-range');
         const prevBtn = document.getElementById('prev-week');
@@ -119,7 +122,7 @@
             document.getElementById('event-id').value = "";
             document.getElementById('event-date').value = date;
             document.getElementById('start-time').value = time;
-            document.getElementById('event-show-time').checked = true; // Default to checked for new events
+            document.getElementById('event-show-time').checked = true;
             modalOverlay.style.display = 'flex';
         }
         function openModalForEdit(event) {
@@ -132,7 +135,7 @@
             document.getElementById('start-time').value = event.startTime;
             document.getElementById('end-time').value = event.endTime;
             document.getElementById('meeting-link').value = event.link;
-            document.getElementById('event-show-time').checked = event.showTime; // Set checkbox based on saved preference
+            document.getElementById('event-show-time').checked = event.showTime;
             modalOverlay.style.display = 'flex';
         }
         function handleFormSubmit(e) {
@@ -146,9 +149,8 @@
                 startTime: document.getElementById('start-time').value,
                 endTime: document.getElementById('end-time').value,
                 link: document.getElementById('meeting-link').value,
-                showTime: document.getElementById('event-show-time').checked // Save the preference
+                showTime: document.getElementById('event-show-time').checked
             };
-            // ... (rest of the function is the same)
             if (eventData.endTime <= eventData.startTime) { alert("End time must be after start time."); return; }
             let updatedEvents = [...allEvents];
             const existingEventIndex = updatedEvents.findIndex(ev => ev.id === eventId);
@@ -172,7 +174,6 @@
         
         // --- RENDER EVENT (Logic updated) ---
         function renderEvent(eventData, layout) {
-            // ... (initial setup is the same)
             const dayColumn = document.querySelector(`.day-column[data-date="${eventData.date}"]`);
             if (!dayColumn) return;
             const eventEl = document.createElement('div');
@@ -187,17 +188,27 @@
             if (durationMinutes <= 0) return;
             eventEl.style.top = `${topOffsetMinutes}px`; eventEl.style.height = `${durationMinutes}px`;
             
-            // --- THIS IS THE MODIFIED PART ---
-            let innerHTML = `<span>${eventData.name}</span>`;
-            // Check the event's own 'showTime' property
+            // --- NEW LOGIC FOR CLICKABLE TITLE ---
+            let titleElement;
+            if (eventData.link) {
+                // If a link exists, make the title an underlined anchor tag
+                titleElement = `<a href="${eventData.link}" target="_blank">${eventData.name}</a>`;
+            } else {
+                // Otherwise, it's just a plain span
+                titleElement = `<span>${eventData.name}</span>`;
+            }
+
+            let innerHTML = titleElement; // Start with the title
+
+            // Conditionally show time
             if (eventData.showTime && durationMinutes > 30) {
                 innerHTML += `<br><small>${formatTime(eventData.startTime)} - ${formatTime(eventData.endTime)}</small>`;
             }
-            // --- END OF MODIFIED PART ---
 
-            if (eventData.link) innerHTML += `<br><a href="${eventData.link}" target="_blank">Join</a>`;
             innerHTML += `<span class="delete-event" data-id="${eventData.id}">&times;</span>`;
             eventEl.innerHTML = innerHTML;
+            // --- END OF NEW LOGIC ---
+
             dayColumn.appendChild(eventEl);
         }
         
@@ -206,7 +217,7 @@
         function renderWeeklyCalendar() {
             calendarGrid.innerHTML = '';
             const startOfWeek = getStartOfWeek(currentDate);
-            const endOfWeek = new Date(startOfWeek); endOfWeek.setDate(startOfWeek.getDate() + 6); endOfWeek.setHours(23, 59, 59, 999);
+            const endOfWeek = new Date(startOfWeek); endOfWeek.setDate(endOfWeek.getDate() + 6); endOfWeek.setHours(23, 59, 59, 999);
             weekRangeEl.textContent = `${startOfWeek.toLocaleDateString()} - ${endOfWeek.toLocaleDateString()}`;
             const timeColumn = document.createElement('div'); timeColumn.id = 'time-column';
             timeColumn.innerHTML = '<div class="time-corner"></div>';
@@ -254,7 +265,7 @@
             return sortedEvents;
         }
         
-        // --- EVENT LISTENERS (Global toggle listener removed) ---
+        // --- EVENT LISTENERS ---
         prevBtn.addEventListener('click', () => { currentDate.setDate(currentDate.getDate() - 7); renderWeeklyCalendar(); });
         nextBtn.addEventListener('click', () => { currentDate.setDate(currentDate.getDate() + 7); renderWeeklyCalendar(); });
         closeModalBtn.addEventListener('click', closeModal);
