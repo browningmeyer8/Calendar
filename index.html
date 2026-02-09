@@ -38,16 +38,55 @@
 </head>
 <body>
 
-<!-- The main HTML structure is the same -->
-<div id="calendar-app">...</div>
-<div id="modal-overlay">...</div>
+<!-- The main HTML structure for the calendar -->
+<div id="calendar-app">
+    <div id="calendar-header">
+        <button id="prev-week">&lt; Prev</button>
+        <div id="week-range"></div>
+        <button id="next-week">Next &gt;</button>
+    </div>
+    <div id="calendar-grid"></div>
+</div>
 
-<!-- NEW: Import the Firebase libraries -->
+<!-- The main HTML structure for the pop-up modal -->
+<div id="modal-overlay">
+    <div id="event-modal">
+        <span id="close-modal">&times;</span>
+        <h3 id="modal-title">Add New Event</h3>
+        <form id="event-form">
+            <input type="hidden" id="event-id">
+            <input type="hidden" id="event-date">
+            <label for="event-org">Organization</label>
+            <select id="event-org" required>
+                <option value="None">None</option>
+                <option value="SAD">SAD</option>
+                <option value="SAM">SAM</option>
+                <option value="SAC">SAC</option>
+                <option value="SAS">SAS</option>
+                <option value="SAJ">SAJ</option>
+                <option value="SAW">SAW</option>
+                <option value="SAA">SAA</option>
+                <option value="ESF3">ESF3</option>
+            </select>
+            <label for="event-name">Event Name</label>
+            <input type="text" id="event-name" required>
+            <label for="start-time">Start Time</label>
+            <input type="time" id="start-time" required step="900">
+            <label for="end-time">End Time</label>
+            <input type="time" id="end-time" required step="900">
+            <label for="meeting-link">Meeting Link (Optional)</label>
+            <input type="url" id="meeting-link" placeholder="https://">
+            <button type="submit">Save Event</button>
+        </form>
+    </div>
+</div>
+
+<!-- The Corrected Script Section -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <script>
-    // --- NEW: INITIALIZE FIREBASE ---
+    // --- INITIALIZE FIREBASE ---
     const firebaseConfig = {
       apiKey: "AIzaSyCp5zpRl9K4-7okPG1nOmaHEIbS1e1y6Fs",
       authDomain: "calendarsad-72fe9.firebaseapp.com",
@@ -59,7 +98,6 @@
       measurementId: "G-C4RTHRE20J"
     };
 
-    // Initialize Firebase using the old, simpler "compat" syntax
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
@@ -74,9 +112,8 @@
         const closeModalBtn = document.getElementById('close-modal');
         const modalTitle = document.getElementById('modal-title');
         let currentDate = new Date();
-        let allEvents = []; // This will be our live, in-memory copy
+        let allEvents = [];
 
-        // --- REWRITTEN SAVE/LOAD FUNCTIONS for Firebase "compat" syntax ---
         function saveAllEvents(events) {
             return database.ref('events').set(events);
         }
@@ -116,12 +153,12 @@
             closeModal();
         }
 
-        // --- All other functions (openModal, renderEvent, etc.) are the same as before ---
         function openModalForNew(date, time) { eventForm.reset(); modalTitle.innerText = "Add New Event"; document.getElementById('event-id').value = ""; document.getElementById('event-date').value = date; document.getElementById('start-time').value = time; modalOverlay.style.display = 'flex'; }
         function openModalForEdit(event) { eventForm.reset(); modalTitle.innerText = "Edit Event"; document.getElementById('event-id').value = event.id; document.getElementById('event-org').value = event.org; document.getElementById('event-date').value = event.date; document.getElementById('event-name').value = event.name; document.getElementById('start-time').value = event.startTime; document.getElementById('end-time').value = event.endTime; document.getElementById('meeting-link').value = event.link; modalOverlay.style.display = 'flex'; }
         function closeModal() { modalOverlay.style.display = 'none'; }
         function getOrgColor(org) { const colors = { 'SAD': '#B71C1C', 'SAS': '#1B5E20', 'SAM': '#4A148C', 'SAJ': '#E65100', 'SAA': '#FF8F00', 'SAC': '#0D47A1', 'SAW': '#004D40', 'None': '#424242', 'ESF3': '#880E4F' }; return colors[org] || colors['None']; }
         function formatTime(timeString) { const [hour, minute] = timeString.split(':'); const h = parseInt(hour) % 12 || 12; const ampm = parseInt(hour) < 12 ? 'AM' : 'PM'; return `${h}:${minute} ${ampm}`; }
+        
         function renderEvent(eventData, layout) {
             const dayColumn = document.querySelector(`.day-column[data-date="${eventData.date}"]`);
             if (!dayColumn) return;
@@ -142,7 +179,9 @@
             eventEl.innerHTML = innerHTML;
             dayColumn.appendChild(eventEl);
         }
+
         function getStartOfWeek(date) { const newDate = new Date(date); newDate.setDate(newDate.getDate() - newDate.getDay()); newDate.setHours(0, 0, 0, 0); return newDate; }
+        
         function renderWeeklyCalendar() {
             calendarGrid.innerHTML = '';
             const startOfWeek = getStartOfWeek(currentDate);
@@ -167,6 +206,7 @@
             const eventsWithLayout = calculateLayout(allEvents);
             eventsWithLayout.forEach(event => { const eventDate = new Date(event.date + 'T00:00:00'); if (eventDate >= startOfWeek && eventDate <= endOfWeek) renderEvent(event, event.layout); });
         }
+
         function calculateLayout(events) {
             const sortedEvents = events.sort((a,b) => a.startTime.localeCompare(b.startTime));
             const collisionGroups = [];
@@ -242,6 +282,8 @@
         loadEventsAndRender();
     });
 </script>
+
 </body>
+
 </html>
 
