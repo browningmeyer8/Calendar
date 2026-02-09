@@ -3,20 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Refined Weekly Planner</title>
+<title>Final Weekly Planner</title>
 <style>
-    /* --- MODIFIED: New background color --- */
-    body { 
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-        background-color: #c4c4c4; 
-        margin: 0; 
-        padding: 20px; 
-    }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #c4c4c4; margin: 0; padding: 20px; }
     #calendar-app { display: flex; flex-direction: column; width: 100%; max-width: 1400px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; background-color: #fff; }
     #calendar-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 20px; background-color: #343a40; color: white; }
     #week-range { font-size: 1.5em; font-weight: 500; }
     #prev-week, #next-week { cursor: pointer; padding: 8px 14px; background-color: #495057; border: none; color: white; border-radius: 5px; }
-    #header-controls { display: flex; align-items: center; gap: 15px; }
     #calendar-grid { display: flex; flex-grow: 1; }
     #time-column { width: 80px; flex-shrink: 0; display: flex; flex-direction: column; background-color: #f8f9fa; border-right: 1px solid #ddd; }
     .time-corner { height: 60px; border-bottom: 1px solid #ddd; }
@@ -33,17 +26,12 @@
     #event-modal h3 { margin-top: 0; }
     #event-form label { display: block; margin-top: 15px; font-weight: bold; }
     #event-form input, #event-form select { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
+    .form-toggle { display: flex; align-items: center; gap: 10px; margin-top: 15px; }
+    .form-toggle input { width: auto; margin: 0; }
+    .form-toggle label { margin: 0; font-weight: normal; }
     #event-form button { width: 100%; padding: 10px; margin-top: 20px; border: none; background-color: #007bff; color: white; border-radius: 5px; cursor: pointer; }
     #close-modal { float: right; font-size: 1.5em; cursor: pointer; }
-    
-    /* --- MODIFIED: Added a distinct border --- */
-    .event { 
-        position: absolute; color: white; border-radius: 4px; 
-        padding: 4px; font-size: 0.8em; overflow: hidden; 
-        z-index: 10; cursor: move; box-sizing: border-box; 
-        text-align: center; font-weight: bold;
-        border: 1px solid #212121; /* Almost-black border */
-    }
+    .event { position: absolute; color: white; border-radius: 4px; padding: 4px; font-size: 0.8em; overflow: hidden; z-index: 10; cursor: move; box-sizing: border-box; text-align: center; font-weight: bold; border: 1px solid #212121; }
     .event a { color: white; }
     .event small { font-weight: normal; }
     .delete-event { position: absolute; top: 2px; right: 5px; display: none; font-weight: bold; cursor: pointer; }
@@ -54,10 +42,6 @@
 
 <div id="calendar-app">
     <div id="calendar-header">
-        <div id="header-controls">
-            <input type="checkbox" id="toggle-time-display" checked>
-            <label for="toggle-time-display">Show Time</label>
-        </div>
         <button id="prev-week">&lt; Prev</button>
         <div id="week-range"></div>
         <button id="next-week">Next &gt;</button>
@@ -74,15 +58,9 @@
             <input type="hidden" id="event-date">
             <label for="event-org">Organization</label>
             <select id="event-org" required>
-                <option value="None">None</option>
-                <option value="SAD">SAD</option>
-                <option value="SAM">SAM</option>
-                <option value="SAC">SAC</option>
-                <option value="SAS">SAS</option>
-                <option value="SAJ">SAJ</option>
-                <option value="SAW">SAW</option>
-                <option value="SAA">SAA</option>
-                <option value="ESF3">ESF3</option>
+                <option value="None">None</option> <option value="SAD">SAD</option> <option value="SAM">SAM</option> <option value="SAC">SAC</option>
+                <option value="SAS">SAS</option> <option value="SAJ">SAJ</option> <option value="SAW">SAW</option>
+                <option value="SAA">SAA</option> <option value="ESF3">ESF3</option>
             </select>
             <label for="event-name">Event Name</label>
             <input type="text" id="event-name" required>
@@ -92,6 +70,10 @@
             <input type="time" id="end-time" required step="900">
             <label for="meeting-link">Meeting Link (Optional)</label>
             <input type="url" id="meeting-link" placeholder="https://">
+            <div class="form-toggle">
+                <input type="checkbox" id="event-show-time">
+                <label for="event-show-time">Show time on event bubble</label>
+            </div>
             <button type="submit">Save Event</button>
         </form>
     </div>
@@ -101,7 +83,7 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
 <script>
-    // --- FIREBASE & INITIALIZATION (Unchanged) ---
+    // --- FIREBASE & INITIALIZATION ---
     const firebaseConfig = {
       apiKey: "AIzaSyCp5zpRl9K4-7okPG1nOmaHEIbS1e1y6Fs",
       authDomain: "calendarsad-72fe9.firebaseapp.com",
@@ -125,29 +107,44 @@
         const eventForm = document.getElementById('event-form');
         const closeModalBtn = document.getElementById('close-modal');
         const modalTitle = document.getElementById('modal-title');
-        const toggleTimeDisplay = document.getElementById('toggle-time-display');
         let currentDate = new Date();
         let allEvents = [];
-        let showTimeOnBubble = true;
 
-        // --- DATA & MODAL FUNCTIONS (Unchanged) ---
-        function saveAllEvents(events) { return database.ref('events').set(events); }
-        function loadEventsAndRender() {
-            const eventsRef = database.ref('events');
-            eventsRef.on('value', (snapshot) => {
-                const eventsFromDB = snapshot.val() || [];
-                allEvents = Array.isArray(eventsFromDB) ? eventsFromDB : Object.values(eventsFromDB);
-                renderWeeklyCalendar();
-            });
+        // --- DATA & MODAL FUNCTIONS ---
+        function openModalForNew(date, time) {
+            eventForm.reset();
+            modalTitle.innerText = "Add New Event";
+            document.getElementById('event-id').value = "";
+            document.getElementById('event-date').value = date;
+            document.getElementById('start-time').value = time;
+            document.getElementById('event-show-time').checked = true;
+            modalOverlay.style.display = 'flex';
+        }
+        function openModalForEdit(event) {
+            eventForm.reset();
+            modalTitle.innerText = "Edit Event";
+            document.getElementById('event-id').value = event.id;
+            document.getElementById('event-org').value = event.org;
+            document.getElementById('event-date').value = event.date;
+            document.getElementById('event-name').value = event.name;
+            document.getElementById('start-time').value = event.startTime;
+            document.getElementById('end-time').value = event.endTime;
+            document.getElementById('meeting-link').value = event.link;
+            document.getElementById('event-show-time').checked = event.showTime;
+            modalOverlay.style.display = 'flex';
         }
         function handleFormSubmit(e) {
             e.preventDefault();
             const eventId = document.getElementById('event-id').value;
             const eventData = {
-                id: eventId || 'event' + Date.now(), org: document.getElementById('event-org').value,
-                date: document.getElementById('event-date').value, name: document.getElementById('event-name').value,
-                startTime: document.getElementById('start-time').value, endTime: document.getElementById('end-time').value,
-                link: document.getElementById('meeting-link').value
+                id: eventId || 'event' + Date.now(),
+                org: document.getElementById('event-org').value,
+                date: document.getElementById('event-date').value,
+                name: document.getElementById('event-name').value,
+                startTime: document.getElementById('start-time').value,
+                endTime: document.getElementById('end-time').value,
+                link: document.getElementById('meeting-link').value,
+                showTime: document.getElementById('event-show-time').checked
             };
             if (eventData.endTime <= eventData.startTime) { alert("End time must be after start time."); return; }
             let updatedEvents = [...allEvents];
@@ -156,15 +153,21 @@
             saveAllEvents(updatedEvents).catch(error => console.error("Firebase save failed: ", error));
             closeModal();
         }
-        function openModalForNew(date, time) { eventForm.reset(); modalTitle.innerText = "Add New Event"; document.getElementById('event-id').value = ""; document.getElementById('event-date').value = date; document.getElementById('start-time').value = time; modalOverlay.style.display = 'flex'; }
-        function openModalForEdit(event) { eventForm.reset(); modalTitle.innerText = "Edit Event"; document.getElementById('event-id').value = event.id; document.getElementById('event-org').value = event.org; document.getElementById('event-date').value = event.date; document.getElementById('event-name').value = event.name; document.getElementById('start-time').value = event.startTime; document.getElementById('end-time').value = event.endTime; document.getElementById('meeting-link').value = event.link; modalOverlay.style.display = 'flex'; }
+        function saveAllEvents(events) { return database.ref('events').set(events); }
+        function loadEventsAndRender() {
+            database.ref('events').on('value', (snapshot) => {
+                const eventsFromDB = snapshot.val() || [];
+                allEvents = Array.isArray(eventsFromDB) ? eventsFromDB : Object.values(eventsFromDB);
+                renderWeeklyCalendar();
+            });
+        }
         function closeModal() { modalOverlay.style.display = 'none'; }
         
-        // --- RENDERING HELPERS (Unchanged) ---
+        // --- RENDERING HELPERS ---
         function getOrgColor(org) { const colors = { 'SAD': '#B71C1C', 'SAS': '#1B5E20', 'SAM': '#4A148C', 'SAJ': '#E65100', 'SAA': '#FF8F00', 'SAC': '#0D47A1', 'SAW': '#004D40', 'None': '#424242', 'ESF3': '#880E4F' }; return colors[org] || colors['None']; }
         function formatTime(timeString) { const [hour, minute] = timeString.split(':'); const h = parseInt(hour) % 12 || 12; const ampm = parseInt(hour) < 12 ? 'AM' : 'PM'; return `${h}:${minute} ${ampm}`; }
         
-        // --- RENDER EVENT (Unchanged from previous UI tweak) ---
+        // --- RENDER EVENT (Logic updated) ---
         function renderEvent(eventData, layout) {
             const dayColumn = document.querySelector(`.day-column[data-date="${eventData.date}"]`);
             if (!dayColumn) return;
@@ -179,13 +182,24 @@
             const durationMinutes = (parseInt(end[0]) - parseInt(start[0])) * 60 + (parseInt(end[1]) - parseInt(start[1]));
             if (durationMinutes <= 0) return;
             eventEl.style.top = `${topOffsetMinutes}px`; eventEl.style.height = `${durationMinutes}px`;
-            let innerHTML = `<span>${eventData.name}</span>`;
-            if (showTimeOnBubble && durationMinutes > 30) {
+            
+            // --- CORRECTED LOGIC BLOCK ---
+            let innerHTML = `<span>${eventData.name}</span>`; // Always show name
+
+            // Conditionally show time
+            if (eventData.showTime && durationMinutes > 30) {
                 innerHTML += `<br><small>${formatTime(eventData.startTime)} - ${formatTime(eventData.endTime)}</small>`;
             }
-            if (eventData.link) innerHTML += `<br><a href="${eventData.link}" target="_blank">Join</a>`;
+
+            // Always show Join link if it exists
+            if (eventData.link) {
+                innerHTML += `<br><a href="${eventData.link}" target="_blank">Join</a>`;
+            }
+
             innerHTML += `<span class="delete-event" data-id="${eventData.id}">&times;</span>`;
             eventEl.innerHTML = innerHTML;
+            // --- END OF CORRECTED LOGIC BLOCK ---
+
             dayColumn.appendChild(eventEl);
         }
         
@@ -242,7 +256,7 @@
             return sortedEvents;
         }
         
-        // --- EVENT LISTENERS (Unchanged) ---
+        // --- EVENT LISTENERS ---
         prevBtn.addEventListener('click', () => { currentDate.setDate(currentDate.getDate() - 7); renderWeeklyCalendar(); });
         nextBtn.addEventListener('click', () => { currentDate.setDate(currentDate.getDate() + 7); renderWeeklyCalendar(); });
         closeModalBtn.addEventListener('click', closeModal);
@@ -286,10 +300,8 @@
             }
             saveAllEvents(updatedEvents);
         });
-        toggleTimeDisplay.addEventListener('change', (e) => { showTimeOnBubble = e.target.checked; renderWeeklyCalendar(); });
 
         // --- INITIAL LOAD ---
-        showTimeOnBubble = toggleTimeDisplay.checked;
         loadEventsAndRender();
     });
 </script>
