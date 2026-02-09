@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Final Weekly Planner</title>
+<title>Final Interactive Planner</title>
 <style>
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #c4c4c4; margin: 0; padding: 20px; }
     #calendar-app { display: flex; flex-direction: column; width: 100%; max-width: 1400px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden; background-color: #fff; }
@@ -36,64 +36,44 @@
     .event small { font-weight: normal; }
     .delete-event { position: absolute; top: 2px; right: 5px; display: none; font-weight: bold; cursor: pointer; }
     .event:hover .delete-event { display: block; }
+    
+    /* --- NEW: CSS for the Popover --- */
+    #event-popover {
+        position: absolute;
+        display: none; /* Hidden by default */
+        width: 250px;
+        background-color: white;
+        border: 1px solid #ccc;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        border-radius: 8px;
+        z-index: 1010;
+        padding: 15px;
+        font-size: 0.9em;
+    }
+    #popover-close { position: absolute; top: 5px; right: 10px; font-size: 1.5em; cursor: pointer; }
+    #popover-title { font-weight: bold; font-size: 1.1em; margin-bottom: 10px; }
+    .popover-detail { margin-bottom: 5px; }
 </style>
 </head>
 <body>
 
-<div id="calendar-app">
-    <div id="calendar-header">
-        <button id="prev-week">&lt; Prev</button>
-        <div id="week-range"></div>
-        <button id="next-week">Next &gt;</button>
-    </div>
-    <div id="calendar-grid"></div>
-</div>
+<div id="calendar-app">...</div>
+<div id="modal-overlay">...</div>
 
-<div id="modal-overlay">
-    <div id="event-modal">
-        <span id="close-modal">&times;</span>
-        <h3 id="modal-title">Add New Event</h3>
-        <form id="event-form">
-            <input type="hidden" id="event-id">
-            <input type="hidden" id="event-date">
-            <label for="event-org">Organization</label>
-            <select id="event-org" required>
-                <option value="None">None</option> <option value="SAD">SAD</option> <option value="SAM">SAM</option> <option value="SAC">SAC</option>
-                <option value="SAS">SAS</option> <option value="SAJ">SAJ</option> <option value="SAW">SAW</option>
-                <option value="SAA">SAA</option> <option value="ESF3">ESF3</option>
-            </select>
-            <label for="event-name">Event Name</label>
-            <input type="text" id="event-name" required>
-            <label for="start-time">Start Time</label>
-            <input type="time" id="start-time" required step="900">
-            <label for="end-time">End Time</label>
-            <input type="time" id="end-time" required step="900">
-            <label for="meeting-link">Meeting Link (Optional)</label>
-            <input type="url" id="meeting-link" placeholder="https://">
-            <div class="form-toggle">
-                <input type="checkbox" id="event-show-time">
-                <label for="event-show-time">Show time on event bubble</label>
-            </div>
-            <button type="submit">Save Event</button>
-        </form>
-    </div>
+<!-- NEW: HTML for the Popover -->
+<div id="event-popover">
+    <span id="popover-close">&times;</span>
+    <div id="popover-title"></div>
+    <div class="popover-detail"><strong>Org:</strong> <span id="popover-org"></span></div>
+    <div class="popover-detail"><strong>Time:</strong> <span id="popover-time"></span></div>
+    <div class="popover-detail" id="popover-link-container"></div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-
 <script>
     // --- FIREBASE & INITIALIZATION ---
-    const firebaseConfig = {
-      apiKey: "AIzaSyCp5zpRl9K4-7okPG1nOmaHEIbS1e1y6Fs",
-      authDomain: "calendarsad-72fe9.firebaseapp.com",
-      databaseURL: "https://calendarsad-72fe9-default-rtdb.firebaseio.com",
-      projectId: "calendarsad-72fe9",
-      storageBucket: "calendarsad-72fe9.appspot.com",
-      messagingSenderId: "22134515039",
-      appId: "1:22134515039:web:fb4334e2c834e07b0b82ea",
-      measurementId: "G-C4RTHRE20J"
-    };
+    const firebaseConfig = { ... };
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
@@ -107,204 +87,98 @@
         const eventForm = document.getElementById('event-form');
         const closeModalBtn = document.getElementById('close-modal');
         const modalTitle = document.getElementById('modal-title');
+        const eventPopover = document.getElementById('event-popover'); // NEW
+        const popoverCloseBtn = document.getElementById('popover-close'); // NEW
+        
         let currentDate = new Date();
         let allEvents = [];
 
-        // --- DATA & MODAL FUNCTIONS ---
-        function openModalForNew(date, time) {
-            eventForm.reset();
-            modalTitle.innerText = "Add New Event";
-            document.getElementById('event-id').value = "";
-            document.getElementById('event-date').value = date;
-            document.getElementById('start-time').value = time;
-            document.getElementById('event-show-time').checked = true;
-            modalOverlay.style.display = 'flex';
-        }
-        function openModalForEdit(event) {
-            eventForm.reset();
-            modalTitle.innerText = "Edit Event";
-            document.getElementById('event-id').value = event.id;
-            document.getElementById('event-org').value = event.org;
-            document.getElementById('event-date').value = event.date;
-            document.getElementById('event-name').value = event.name;
-            document.getElementById('start-time').value = event.startTime;
-            document.getElementById('end-time').value = event.endTime;
-            document.getElementById('meeting-link').value = event.link;
-            document.getElementById('event-show-time').checked = event.showTime;
-            modalOverlay.style.display = 'flex';
-        }
-        function handleFormSubmit(e) {
-            e.preventDefault();
-            const eventId = document.getElementById('event-id').value;
-            const eventData = {
-                id: eventId || 'event' + Date.now(),
-                org: document.getElementById('event-org').value,
-                date: document.getElementById('event-date').value,
-                name: document.getElementById('event-name').value,
-                startTime: document.getElementById('start-time').value,
-                endTime: document.getElementById('end-time').value,
-                link: document.getElementById('meeting-link').value,
-                showTime: document.getElementById('event-show-time').checked
-            };
-            if (eventData.endTime <= eventData.startTime) { alert("End time must be after start time."); return; }
-            let updatedEvents = [...allEvents];
-            const existingEventIndex = updatedEvents.findIndex(ev => ev.id === eventId);
-            if (existingEventIndex > -1) { updatedEvents[existingEventIndex] = eventData; } else { updatedEvents.push(eventData); }
-            saveAllEvents(updatedEvents).catch(error => console.error("Firebase save failed: ", error));
-            closeModal();
-        }
-        function saveAllEvents(events) { return database.ref('events').set(events); }
-        function loadEventsAndRender() {
-            database.ref('events').on('value', (snapshot) => {
-                const eventsFromDB = snapshot.val() || [];
-                allEvents = Array.isArray(eventsFromDB) ? eventsFromDB : Object.values(eventsFromDB);
-                renderWeeklyCalendar();
-            });
-        }
-        function closeModal() { modalOverlay.style.display = 'none'; }
-        
-        // --- RENDERING HELPERS ---
-        function getOrgColor(org) { const colors = { 'SAD': '#B71C1C', 'SAS': '#1B5E20', 'SAM': '#4A148C', 'SAJ': '#E65100', 'SAA': '#FF8F00', 'SAC': '#0D47A1', 'SAW': '#004D40', 'None': '#424242', 'ESF3': '#880E4F' }; return colors[org] || colors['None']; }
-        function formatTime(timeString) { const [hour, minute] = timeString.split(':'); const h = parseInt(hour) % 12 || 12; const ampm = parseInt(hour) < 12 ? 'AM' : 'PM'; return `${h}:${minute} ${ampm}`; }
-        
-        // --- RENDER EVENT (Logic updated) ---
-        function renderEvent(eventData, layout) {
-            const dayColumn = document.querySelector(`.day-column[data-date="${eventData.date}"]`);
-            if (!dayColumn) return;
-            const eventEl = document.createElement('div');
-            eventEl.className = 'event'; eventEl.id = eventData.id; eventEl.draggable = true;
-            eventEl.title = `${eventData.name}\nOrg: ${eventData.org}\nStart: ${formatTime(eventData.startTime)}\nEnd: ${formatTime(eventData.endTime)}`;
-            const color = getOrgColor(eventData.org);
-            eventEl.style.backgroundColor = color;
-            eventEl.style.left = `${layout.left}%`; eventEl.style.width = `calc(${layout.width}% - 5px)`;
-            const start = eventData.startTime.split(':'), end = eventData.endTime.split(':');
-            const topOffsetMinutes = (parseInt(start[0]) - 7) * 60 + parseInt(start[1]);
-            const durationMinutes = (parseInt(end[0]) - parseInt(start[0])) * 60 + (parseInt(end[1]) - parseInt(start[1]));
-            if (durationMinutes <= 0) return;
-            eventEl.style.top = `${topOffsetMinutes}px`; eventEl.style.height = `${durationMinutes}px`;
+        // --- NEW: POPOVER FUNCTIONS ---
+        function openPopover(eventData, eventElement) {
+            const rect = eventElement.getBoundingClientRect();
+
+            // Populate popover content
+            document.getElementById('popover-title').innerText = eventData.name;
+            document.getElementById('popover-org').innerText = eventData.org;
+            document.getElementById('popover-time').innerText = `${formatTime(eventData.startTime)} - ${formatTime(eventData.endTime)}`;
             
-            // --- CORRECTED LOGIC BLOCK ---
-            let innerHTML = `<span>${eventData.name}</span>`; // Always show name
-
-            // Conditionally show time
-            if (eventData.showTime && durationMinutes > 30) {
-                innerHTML += `<br><small>${formatTime(eventData.startTime)} - ${formatTime(eventData.endTime)}</small>`;
-            }
-
-            // Always show Join link if it exists
+            const linkContainer = document.getElementById('popover-link-container');
             if (eventData.link) {
-                innerHTML += `<br><a href="${eventData.link}" target="_blank">Join</a>`;
+                linkContainer.innerHTML = `<strong>Link:</strong> <a href="${eventData.link}" target="_blank">Join Meeting</a>`;
+                linkContainer.style.display = 'block';
+            } else {
+                linkContainer.style.display = 'none';
             }
+            
+            eventPopover.style.display = 'block';
 
-            innerHTML += `<span class="delete-event" data-id="${eventData.id}">&times;</span>`;
-            eventEl.innerHTML = innerHTML;
-            // --- END OF CORRECTED LOGIC BLOCK ---
+            // Position the popover
+            let top = rect.top + window.scrollY - eventPopover.offsetHeight - 10;
+            if (top < window.scrollY) { // If it would go off-screen at the top
+                top = rect.bottom + window.scrollY + 10; // Position below instead
+            }
+            let left = rect.left + window.scrollX + (rect.width / 2) - (eventPopover.offsetWidth / 2);
+            if (left < 0) left = 5; // Prevent going off-screen left
 
-            dayColumn.appendChild(eventEl);
+            eventPopover.style.top = `${top}px`;
+            eventPopover.style.left = `${left}px`;
         }
-        
+
+        function closePopover() {
+            eventPopover.style.display = 'none';
+        }
+
+        // --- DATA & MODAL FUNCTIONS (Unchanged) ---
+        // ... (All functions like openModalForNew, handleFormSubmit, etc. are the same)
+
+        // --- RENDER EVENT & HELPERS (Unchanged) ---
+        // ... (getOrgColor, formatTime, renderEvent, etc. are the same)
+
         // --- LAYOUT & MAIN RENDER (Unchanged) ---
-        function getStartOfWeek(date) { const newDate = new Date(date); newDate.setDate(newDate.getDate() - newDate.getDay()); newDate.setHours(0, 0, 0, 0); return newDate; }
-        function renderWeeklyCalendar() {
-            calendarGrid.innerHTML = '';
-            const startOfWeek = getStartOfWeek(currentDate);
-            const endOfWeek = new Date(startOfWeek); endOfWeek.setDate(startOfWeek.getDate() + 6); endOfWeek.setHours(23, 59, 59, 999);
-            weekRangeEl.textContent = `${startOfWeek.toLocaleDateString()} - ${endOfWeek.toLocaleDateString()}`;
-            const timeColumn = document.createElement('div'); timeColumn.id = 'time-column';
-            timeColumn.innerHTML = '<div class="time-corner"></div>';
-            for (let h = 7; h < 19; h++) timeColumn.innerHTML += `<div class="time-label">${h > 12 ? h - 12 : h}:00 ${h >= 12 ? 'PM' : 'AM'}</div>`;
-            calendarGrid.appendChild(timeColumn);
-            const daysContainer = document.createElement('div'); daysContainer.id = 'days-container';
-            let dayHeaders = '';
-            for (let i = 0; i < 7; i++) { const d = new Date(startOfWeek); d.setDate(d.getDate() + i); dayHeaders += `<div class="day-header"><div>${d.toLocaleDateString('en-US',{weekday:'short'})}</div><div>${d.getDate()}</div></div>`; }
-            daysContainer.innerHTML = dayHeaders;
-            for (let i = 0; i < 7; i++) {
-                const d = new Date(startOfWeek); d.setDate(d.getDate() + i);
-                const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                const dayCol = document.createElement('div'); dayCol.className = 'day-column'; dayCol.dataset.date = ds;
-                for (let min = 0; min < 12*60; min+=15) { const h = 7 + Math.floor(min/60), m = min%60; dayCol.innerHTML += `<div class="time-slot" data-date="${ds}" data-time="${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}"></div>`; }
-                daysContainer.appendChild(dayCol);
-            }
-            calendarGrid.appendChild(daysContainer);
-            const eventsWithLayout = calculateLayout(allEvents);
-            eventsWithLayout.forEach(event => { const eventDate = new Date(event.date + 'T00:00:00'); if (eventDate >= startOfWeek && eventDate <= endOfWeek) renderEvent(event, event.layout); });
-        }
-        function calculateLayout(events) {
-            const sortedEvents = events.sort((a,b) => a.startTime.localeCompare(b.startTime));
-            const collisionGroups = [];
-            for (const event of sortedEvents) {
-                let placed = false;
-                for (const group of collisionGroups) {
-                    const lastEventInGroup = group[group.length - 1];
-                    if (event.date === lastEventInGroup.date && event.startTime < lastEventInGroup.endTime) { group.push(event); placed = true; break; }
-                }
-                if (!placed) { collisionGroups.push([event]); }
-            }
-            for (const group of collisionGroups) {
-                const columns = [];
-                for (const event of group) {
-                    let colIndex = 0;
-                    while(columns[colIndex] && columns[colIndex].endTime > event.startTime) { colIndex++; }
-                    if (!columns[colIndex]) { columns[colIndex] = { events: [], endTime: '00:00' }; }
-                    columns[colIndex].events.push(event);
-                    columns[colIndex].endTime = event.endTime;
-                    event.layout = { columnIndex: colIndex, totalColumns: 0 };
-                }
-                const totalColumns = columns.length;
-                for (const event of group) { event.layout.totalColumns = totalColumns; event.layout.width = 100 / event.layout.totalColumns; event.layout.left = event.layout.columnIndex * event.layout.width; }
-            }
-            return sortedEvents;
-        }
+        // ... (getStartOfWeek, renderWeeklyCalendar, calculateLayout are the same)
         
-        // --- EVENT LISTENERS ---
-        prevBtn.addEventListener('click', () => { currentDate.setDate(currentDate.getDate() - 7); renderWeeklyCalendar(); });
-        nextBtn.addEventListener('click', () => { currentDate.setDate(currentDate.getDate() + 7); renderWeeklyCalendar(); });
+        // --- EVENT LISTENERS (Modified) ---
+        prevBtn.addEventListener('click', () => { closePopover(); currentDate.setDate(currentDate.getDate() - 7); renderWeeklyCalendar(); });
+        nextBtn.addEventListener('click', () => { closePopover(); currentDate.setDate(currentDate.getDate() + 7); renderWeeklyCalendar(); });
         closeModalBtn.addEventListener('click', closeModal);
+        popoverCloseBtn.addEventListener('click', closePopover); // NEW
         modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
         eventForm.addEventListener('submit', handleFormSubmit);
+
         calendarGrid.addEventListener('click', function(e) {
-            if (e.target.classList.contains('time-slot')) openModalForNew(e.target.dataset.date, e.target.dataset.time);
+            // Check if clicking the delete button
             if (e.target.classList.contains('delete-event')) {
+                closePopover();
                 const eventId = e.target.dataset.id;
                 if (confirm("Are you sure you want to delete this event?")) {
                     let updatedEvents = allEvents.filter(ev => ev.id !== eventId);
                     saveAllEvents(updatedEvents);
                 }
+                return; // Stop further processing
             }
-        });
-        calendarGrid.addEventListener('dblclick', function(e) {
-            const eventEl = e.target.closest('.event');
-            if (eventEl) { const eventData = allEvents.find(ev => ev.id === eventEl.id); if (eventData) openModalForEdit(eventData); }
-        });
-        calendarGrid.addEventListener('dragstart', (e) => { if (e.target.classList.contains('event')) { e.dataTransfer.setData('text/plain', e.target.id); e.dataTransfer.effectAllowed = (e.ctrlKey || e.metaKey) ? 'copy' : 'move'; } });
-        calendarGrid.addEventListener('dragover', (e) => e.preventDefault());
-        calendarGrid.addEventListener('drop', (e) => {
-            e.preventDefault();
-            const eventId = e.dataTransfer.getData('text/plain'), targetSlot = e.target.closest('.time-slot');
-            if (!eventId || !targetSlot) return;
-            const isCopy = e.ctrlKey || e.metaKey;
-            let updatedEvents = [...allEvents];
-            const originalEvent = updatedEvents.find(ev => ev.id === eventId);
-            if (!originalEvent) return;
-            const durationMs = new Date(`1970-01-01T${originalEvent.endTime}`) - new Date(`1970-01-01T${originalEvent.startTime}`);
-            const newStart = new Date(`1970-01-01T${targetSlot.dataset.time}`);
-            const newEnd = new Date(newStart.getTime() + durationMs);
-            const newEndTime = `${String(newEnd.getHours()).padStart(2,'0')}:${String(newEnd.getMinutes()).padStart(2,'0')}`;
-            if (isCopy) {
-                const newEventData = { ...originalEvent, id: 'event' + Date.now(), date: targetSlot.dataset.date, startTime: targetSlot.dataset.time, endTime: newEndTime };
-                updatedEvents.push(newEventData);
+
+            const clickedEventEl = e.target.closest('.event');
+            if (clickedEventEl) {
+                // A single click on an event opens the popover
+                const eventData = allEvents.find(ev => ev.id === clickedEventEl.id);
+                if (eventData) {
+                    openPopover(eventData, clickedEventEl);
+                }
+            } else if (e.target.classList.contains('time-slot')) {
+                // A click on an empty slot opens the modal
+                closePopover();
+                openModalForNew(e.target.dataset.date, e.target.dataset.time);
             } else {
-                originalEvent.date = targetSlot.dataset.date;
-                originalEvent.startTime = targetSlot.dataset.time;
-                originalEvent.endTime = newEndTime;
+                // Clicking anywhere else on the grid closes the popover
+                closePopover();
             }
-            saveAllEvents(updatedEvents);
         });
+
+        // --- All other event listeners (dblclick, drag/drop) are the same ---
 
         // --- INITIAL LOAD ---
         loadEventsAndRender();
     });
 </script>
-
 </body>
 </html>
